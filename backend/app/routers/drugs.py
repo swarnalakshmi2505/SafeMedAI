@@ -25,7 +25,7 @@ router = APIRouter(prefix="/drugs", tags=["Drug Detail"])
 
 async def fetch_llm_drug_info(drug_name: str) -> dict:
     """Fetch uses, pros, cons, etc. from an LLM (Gemini or OpenAI)."""
-    prompt = f\"\"\"
+    prompt = f"""
     Provide detailed medical information for the drug '{drug_name}'.
     Return ONLY a valid JSON object with exactly these keys:
     - "uses": brief description of what it is used for
@@ -33,7 +33,7 @@ async def fetch_llm_drug_info(drug_name: str) -> dict:
     - "cons": warnings and adverse reactions
     - "who_should_avoid": contraindications
     - "dosage": general dosage and administration guidelines
-    \"\"\"
+    """
 
     # Try Gemini
     gemini_key = os.getenv("GEMINI_API_KEY")

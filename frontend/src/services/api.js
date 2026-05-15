@@ -32,6 +32,13 @@ export const dataAPI = {
   getTrends: (drugName) => api.get(`/data/trends/${encodeURIComponent(drugName)}`),
   triggerIngest: (limit = 50) => api.post(`/data/ingest?limit=${limit}`),
   getIngestStatus: () => api.get('/data/ingest/status'),
+  getLeaderboard: () => analyticsAPI.getLeaderboard(),
+};
+
+export const doctorAPI = {
+  submitReport: (payload) => api.post('/doctor-reports/', payload),
+  getMyReports: () => api.get('/doctor-reports/me'),
+  getReportById: (id) => api.get(`/doctor-reports/${id}`),
 };
 
 export const alertsAPI = {

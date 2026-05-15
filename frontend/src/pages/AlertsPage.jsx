@@ -1,143 +1,175 @@
-import { useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
-
-import Layout from '../components/Layout';
-import { alertsAPI } from '../services/api';
-
-const levelStyles = {
-  critical: 'border-red-500/50 bg-red-500/10',
-  high: 'border-orange-500/50 bg-orange-500/10',
-  medium: 'border-yellow-500/50 bg-yellow-500/10',
-};
-
-const badgeStyles = {
-  critical: 'bg-red-500/20 text-red-400 border-red-500/40',
-  high: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
-  medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
-};
+import { useEffect, useState } from 'react'
+import { Bell, ShieldAlert, CheckCircle, RefreshCcw } from 'lucide-react'
+import Layout from '../components/Layout'
+import api from '../services/api'
+import AlertBanner from '../components/AlertBanner'
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
 
-  const load = () => {
-    setLoading(true);
-    alertsAPI
-      .getAlerts()
-      .then((response) => setAlerts(response.data || []))
-      .finally(() => setLoading(false));
-  };
+  const fetchAlerts = async () => {
+    try {
+      const res = await api.get('/alerts')
+      setAlerts(res.data)
+    } catch (err) {
+      console.error("Error fetching alerts:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  useEffect(() => {
-    load();
-  }, []);
+  const generateAlerts = async () => {
+    setGenerating(true)
+    try {
+      await api.post('/alerts/generate')
+      await fetchAlerts()
+    } catch (err) {
+      console.error("Error generating alerts:", err)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
-  const summary = useMemo(() => {
-    return {
-      pending: alerts.filter((alert) => !alert.is_validated).length,
-      validated: alerts.filter((alert) => alert.is_validated && !alert.is_sent).length,
-      sent: alerts.filter((alert) => alert.is_sent).length,
-    };
-  }, [alerts]);
+  const markReviewed = async (id) => {
+    try {
+      await api.patch(`/alerts/${id}/review`)
+      setAlerts(prev =>
+        prev.map(a => a.id === id ? { ...a, is_reviewed: true } : a)
+      )
+    } catch (err) {
+      console.error("Error marking alert as reviewed:", err)
+    }
+  }
 
-  const generate = async () => {
-    await toast.promise(alertsAPI.generateAlerts(), {
-      loading: 'Scanning risk scores...',
-      success: 'Alerts generated!',
-      error: 'Failed to generate alerts',
-    });
-    load();
-  };
+  useEffect(() => { fetchAlerts() }, [])
 
-  const validate = async (id) => {
-    await alertsAPI.validateAlert(id);
-    toast.success('Alert validated');
-    load();
-  };
-
-  const send = async (id) => {
-    await alertsAPI.sendAlert(id);
-    toast.success('Alert sent to doctors');
-    load();
-  };
+  const unreviewed = alerts.filter(a => !a.is_reviewed)
+  const reviewed   = alerts.filter(a => a.is_reviewed)
 
   return (
-    <Layout>
-      <div className="mx-auto max-w-5xl space-y-8 px-8 py-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Alert Management</h1>
-            <p className="mt-1 text-sm text-slate-400">Review, validate, and dispatch safety alerts</p>
+    <Layout title="Alert Command Center">
+      <div className="max-w-5xl mx-auto space-y-8 animate-safemed-fadein">
+
+        {/* Header Area */}
+        <div className="flex items-center justify-between bg-white border border-medical-100 rounded-2xl p-6 shadow-soft">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center shadow-soft">
+              <ShieldAlert className="w-6 h-6 text-red-500" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">Security Monitoring</h1>
+              <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">
+                {unreviewed.length} Priority Review{unreviewed.length !== 1 ? 's' : ''} Pending
+              </p>
+            </div>
           </div>
           <button
-            onClick={generate}
-            className="rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-500"
+            onClick={generateAlerts}
+            disabled={generating}
+            className="bg-medical-500 hover:bg-medical-600 text-white px-6 py-3 rounded-xl text-xs font-bold transition-all shadow-lg shadow-medical-500/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
           >
-            Generate Alerts
+            {generating ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+            {generating ? 'Scanning Systems...' : 'Manual Signal Scan'}
           </button>
         </div>
 
-        <section className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Pending Review', count: summary.pending, color: 'text-yellow-400' },
-            { label: 'Validated', count: summary.validated, color: 'text-sky-400' },
-            { label: 'Sent', count: summary.sent, color: 'text-green-400' },
-          ].map((entry) => (
-            <div key={entry.label} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-center shadow-2xl shadow-slate-950/30">
-              <p className={`text-2xl font-bold ${entry.color}`}>{entry.count}</p>
-              <p className="mt-1 text-xs text-slate-400">{entry.label}</p>
-            </div>
-          ))}
-        </section>
-
-        {loading ? (
-          <p className="py-12 text-center text-slate-400">Loading alerts...</p>
-        ) : alerts.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-900/60 px-6 py-16 text-center">
-            <p className="text-lg text-slate-300">No alerts yet.</p>
-            <p className="mt-2 text-sm text-slate-500">Click Generate Alerts to scan the current risk scores.</p>
+        {loading && (
+          <div className="flex justify-center py-20">
+            <RefreshCcw className="w-8 h-8 text-medical-200 animate-spin" />
           </div>
-        ) : (
-          <div className="space-y-4">
-            {alerts.map((alert) => (
-              <div key={alert.id} className={`rounded-2xl border p-5 shadow-2xl shadow-slate-950/20 ${levelStyles[alert.level] || 'border-slate-800 bg-slate-900/70'}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="mb-2 flex flex-wrap items-center gap-3">
-                      <h3 className="text-lg font-semibold capitalize text-white">{alert.drug_name}</h3>
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${badgeStyles[alert.level] || badgeStyles.medium}`}>{alert.level}</span>
-                      <span className="text-xs text-slate-500">Score: {alert.risk_score}</span>
-                      {alert.is_sent ? <span className="text-xs text-green-400">✓ Sent</span> : null}
-                      {alert.is_validated && !alert.is_sent ? <span className="text-xs text-sky-400">✓ Validated</span> : null}
-                    </div>
-                    <p className="text-sm leading-6 text-slate-300">{alert.message}</p>
-                    <p className="mt-2 text-xs text-slate-500">{new Date(alert.created_at).toLocaleString()}</p>
-                  </div>
+        )}
 
-                  <div className="flex flex-shrink-0 flex-col gap-2">
-                    {!alert.is_validated ? (
-                      <button
-                        onClick={() => validate(alert.id)}
-                        className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-sky-500"
-                      >
-                        Validate
-                      </button>
-                    ) : null}
-                    {alert.is_validated && !alert.is_sent ? (
-                      <button
-                        onClick={() => send(alert.id)}
-                        className="rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-500"
-                      >
-                        Send to Doctors
-                      </button>
-                    ) : null}
+        {/* Unreviewed Signals */}
+        {unreviewed.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+              Critical Surveillance Needed
+            </h2>
+            <div className="space-y-3">
+              {unreviewed.map(alert => (
+                <div
+                  key={alert.id}
+                  className="bg-white border border-medical-100 rounded-2xl p-5 flex items-start justify-between gap-6 hover:border-medical-300 transition-colors group animate-safemed-slidein"
+                >
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-soft
+                      ${alert.level === 'critical' ? 'bg-red-50' : alert.level === 'high' ? 'bg-orange-50' : 'bg-yellow-50'}`}>
+                      {alert.level === 'critical' ? '🔴' : alert.level === 'high' ? '🟠' : '🟡'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-base font-black text-slate-900 capitalize leading-none group-hover:text-medical-600 transition-colors">
+                          {alert.drug_name}
+                        </span>
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider
+                          ${alert.level === 'critical' ? 'bg-red-500 text-white' : alert.level === 'high' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white'}`}>
+                          {alert.level}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                          Signal Intensity: {alert.risk_score}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 text-[13px] font-medium leading-relaxed">{alert.message}</p>
+                      <p className="text-slate-400 text-[10px] font-bold mt-2 uppercase tracking-tighter">
+                        Timestamp: {new Date(alert.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => markReviewed(alert.id)}
+                    className="flex-shrink-0 text-[11px] font-bold bg-slate-50 hover:bg-green-50 hover:text-green-600 text-slate-500 px-4 py-2 rounded-xl border border-slate-100 hover:border-green-200 transition-all active:scale-95"
+                  >
+                    Clear Signal
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reviewed History */}
+        {reviewed.length > 0 && (
+          <div className="space-y-4 pt-4 opacity-70">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+              Cleared History
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {reviewed.map(alert => (
+                <div
+                  key={alert.id}
+                  className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-3"
+                >
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-bold text-slate-700 capitalize block truncate">
+                      {alert.drug_name}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                      {alert.level} · Reviewed at {new Date(alert.updated_at || alert.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loading && alerts.length === 0 && (
+          <div className="text-center py-32 bg-white border border-dashed border-medical-200 rounded-3xl animate-safemed-fadein">
+            <div className="text-5xl mb-4 animate-safemed-float">🧘</div>
+            <h3 className="text-lg font-black text-slate-900">Systems Harmonized</h3>
+            <p className="text-slate-500 text-sm mt-2 font-medium">No active safety threats detected across clinical compounds.</p>
+            <button
+              onClick={generateAlerts}
+              className="mt-6 text-medical-600 font-bold text-xs hover:underline"
+            >
+              Run system-wide re-scan →
+            </button>
           </div>
         )}
       </div>
     </Layout>
-  );
+  )
 }
