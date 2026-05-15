@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database.connection import SessionLocal, get_db
 from app.models.drug import DrugReport, DrugStatistics, ExternalEvidenceSignal, YearlyTrend
 from app.models.user import User
-from app.routers.auth import require_officer
+from app.routers.auth import require_officer, get_current_user
 from app.services.ingestion_service import run_full_ingestion
 
 router = APIRouter(prefix="/data", tags=["Data Pipeline"])
@@ -47,7 +47,7 @@ def ingestion_status_check(_: User = Depends(require_officer)):
 
 
 @router.get("/summary")
-def get_data_summary(db: Session = Depends(get_db), _: User = Depends(require_officer)):
+def get_data_summary(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     total_reports = db.query(DrugReport).count()
     total_drugs = db.query(DrugStatistics).count()
     latest = db.query(DrugReport).order_by(DrugReport.created_at.desc()).first()
@@ -60,7 +60,7 @@ def get_data_summary(db: Session = Depends(get_db), _: User = Depends(require_of
 
 
 @router.get("/drugs")
-def list_tracked_drugs(db: Session = Depends(get_db), _: User = Depends(require_officer)):
+def list_tracked_drugs(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     stats = db.query(DrugStatistics).order_by(DrugStatistics.risk_score.desc()).all()
     evidence_rows = db.query(ExternalEvidenceSignal).all()
     evidence_by_drug = {}

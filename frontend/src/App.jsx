@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import OfficerDashboard from './pages/OfficerDashboard';
 import DrugSearchPage from './pages/DrugSearchPage';
 import DrugDetailPage from './pages/DrugDetailPage';
@@ -11,7 +12,16 @@ import PersonalizedPage from './pages/PersonalizedPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import ChatbotPage from './pages/ChatbotPage';
 import ReportsPage from './pages/ReportsPage';
+import ReportPreviewPage from './pages/ReportPreviewPage';
 import SentimentPage from './pages/SentimentPage';
+import ProfilePage from './pages/ProfilePage';
+
+// Doctor Pages
+import DoctorDashboard from './pages/doctor/DoctorDashboard';
+import SubmitReportPage from './pages/doctor/SubmitReportPage';
+import MyReportsPage from './pages/doctor/MyReportsPage';
+import DoctorDrugSearch from './pages/doctor/DoctorDrugSearch';
+import DoctorChatbot from './pages/doctor/DoctorChatbot';
 
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,20 +33,44 @@ export default function App() {
         <Toaster position="top-right" />
         <Routes>
           <Route path="/" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           
-          {/* Officer Routes */}
-          <Route path="/officer/dashboard" element={<ProtectedRoute allowedRole="officer"><OfficerDashboard /></ProtectedRoute>} />
-          <Route path="/officer/leaderboard" element={<ProtectedRoute allowedRole="officer"><LeaderboardPage /></ProtectedRoute>} />
-          <Route path="/officer/search" element={<ProtectedRoute allowedRole="officer"><DrugSearchPage /></ProtectedRoute>} />
-          <Route path="/officer/drug/:drugName" element={<ProtectedRoute allowedRole="officer"><DrugDetailPage /></ProtectedRoute>} />
-          <Route path="/officer/alerts" element={<ProtectedRoute allowedRole="officer"><AlertsPage /></ProtectedRoute>} />
-          <Route path="/officer/interaction" element={<ProtectedRoute allowedRole="officer"><InteractionPage /></ProtectedRoute>} />
-          <Route path="/officer/personalized" element={<ProtectedRoute allowedRole="officer"><PersonalizedPage /></ProtectedRoute>} />
-          <Route path="/officer/sentiment" element={<ProtectedRoute allowedRole="officer"><SentimentPage /></ProtectedRoute>} />
-          <Route path="/officer/reports" element={<ProtectedRoute allowedRole="officer"><ReportsPage /></ProtectedRoute>} />
-          <Route path="/officer/chatbot" element={<ProtectedRoute allowedRole="officer"><ChatbotPage /></ProtectedRoute>} />
+          <Route path="/officer/*" element={
+            <ProtectedRoute allowedRole="officer">
+              <Routes>
+                <Route path="dashboard" element={<OfficerDashboard />} />
+                <Route path="leaderboard" element={<LeaderboardPage />} />
+                <Route path="search" element={<DrugSearchPage />} />
+                <Route path="drug/:drugName" element={<DrugDetailPage />} />
+                <Route path="alerts" element={<AlertsPage />} />
+                <Route path="interaction" element={<InteractionPage />} />
+                <Route path="personalized" element={<PersonalizedPage />} />
+                <Route path="sentiment" element={<SentimentPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="report/:drugName" element={<ReportPreviewPage />} />
+                <Route path="chatbot" element={<ChatbotPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
 
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/doctor/*" element={
+            <ProtectedRoute allowedRole="doctor">
+              <Routes>
+                <Route path="dashboard" element={<DoctorDashboard />} />
+                <Route path="submit" element={<SubmitReportPage />} />
+                <Route path="my-reports" element={<MyReportsPage />} />
+                <Route path="drugs" element={<DoctorDrugSearch />} />
+                <Route path="chatbot" element={<DoctorChatbot />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

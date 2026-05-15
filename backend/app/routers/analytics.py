@@ -103,17 +103,34 @@ def get_drug_detail(drug_name: str, db: Session = Depends(get_db)):
 @router.get("/leaderboard")
 def get_risk_leaderboard(db: Session = Depends(get_db)):
     stats = db.query(DrugStatistics).order_by(DrugStatistics.risk_score.desc()).limit(10).all()
-    return [
-        {
+    
+    results = []
+    for index, stat in enumerate(stats):
+        # Fetch alternatives (safer drugs)
+        safer_drugs = db.query(DrugStatistics).filter(
+            DrugStatistics.drug_name != stat.drug_name,
+            DrugStatistics.risk_score < stat.risk_score - 10
+        ).order_by(DrugStatistics.risk_score.asc()).limit(2).all()
+        
+        alternatives = [
+            {
+                "drug_name": s.drug_name,
+                "risk_score": s.risk_score,
+                "top_reactions": s.top_reactions[:2] if s.top_reactions else []
+            }
+            for s in safer_drugs
+        ]
+        
+        results.append({
             "rank": index + 1,
             "drug_name": stat.drug_name,
             "risk_score": stat.risk_score,
             "total_reports": stat.total_reports,
             "death_reports": stat.death_reports,
             "top_reactions": stat.top_reactions or [],
-        }
-        for index, stat in enumerate(stats)
-    ]
+            "alternatives": alternatives
+        })
+    return results
 
 
 @router.get("/demographics")

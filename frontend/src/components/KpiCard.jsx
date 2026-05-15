@@ -4,6 +4,7 @@ export default function KpiCard({ title, value, sub, color = 'sky', icon }) {
     red: 'text-red-400 border-red-500/30 bg-red-500/10',
     yellow: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
     green: 'text-green-400 border-green-500/30 bg-green-500/10',
+    teal: 'text-teal-400 border-teal-500/30 bg-teal-500/10',
   };
 
   const colorClass = colors[color] || colors.sky;

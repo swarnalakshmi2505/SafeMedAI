@@ -1,8 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Bell, ShieldAlert, CheckCircle, RefreshCcw } from 'lucide-react'
+import { 
+  Bell, 
+  ShieldAlert, 
+  CheckCircle, 
+  RefreshCcw, 
+  Activity, 
+  ChevronRight, 
+  Terminal,
+  ShieldCheck,
+  Zap,
+  Eye,
+  Cpu
+} from 'lucide-react'
 import Layout from '../components/Layout'
 import api from '../services/api'
-import AlertBanner from '../components/AlertBanner'
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState([])
@@ -48,81 +59,110 @@ export default function AlertsPage() {
   const unreviewed = alerts.filter(a => !a.is_reviewed)
   const reviewed   = alerts.filter(a => a.is_reviewed)
 
+  const levelColor = (level) =>
+    ({
+      critical: 'text-brand-red',
+      high: 'text-brand-amber',
+      medium: 'text-brand-blue',
+    }[level] || 'text-surface-500');
+
+  const levelBg = (level) =>
+    ({
+      critical: 'bg-brand-red/10 border-brand-red/20',
+      high: 'bg-brand-amber/10 border-brand-amber/20',
+      medium: 'bg-brand-blue/10 border-brand-blue/20',
+    }[level] || 'bg-white/5 border-white/10');
+
   return (
-    <Layout title="Alert Command Center">
-      <div className="max-w-5xl mx-auto space-y-8 animate-safemed-fadein">
+    <Layout title="Signal Command Center">
+      <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-safemed-fadein">
 
         {/* Header Area */}
-        <div className="flex items-center justify-between bg-white border border-medical-100 rounded-2xl p-6 shadow-soft">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center shadow-soft">
-              <ShieldAlert className="w-6 h-6 text-red-500" />
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-8">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 bg-brand-red/10 border border-brand-red/20 rounded-2xl flex items-center justify-center shadow-glow-red/10">
+              <ShieldAlert className="w-8 h-8 text-brand-red animate-pulse" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">Security Monitoring</h1>
-              <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">
-                {unreviewed.length} Priority Review{unreviewed.length !== 1 ? 's' : ''} Pending
+              <h1 className="text-3xl font-bold text-white tracking-tight">Signal <span className="text-brand-red">Command</span> Center</h1>
+              <p className="text-[11px] text-surface-500 font-bold uppercase tracking-[0.2em] mt-3">
+                {unreviewed.length} Priority Clinical Signals Pending Surveillance Review
               </p>
             </div>
           </div>
           <button
             onClick={generateAlerts}
             disabled={generating}
-            className="bg-medical-500 hover:bg-medical-600 text-white px-6 py-3 rounded-xl text-xs font-bold transition-all shadow-lg shadow-medical-500/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+            className="btn-premium px-8 py-4 flex items-center gap-3 disabled:opacity-50 active:scale-95 transition-all"
           >
-            {generating ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
-            {generating ? 'Scanning Systems...' : 'Manual Signal Scan'}
+            {generating ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+            <span className="uppercase tracking-[0.15em] text-xs font-bold">
+              {generating ? 'Scanning Clinical Clusters...' : 'Initialize Signal Scan'}
+            </span>
           </button>
         </div>
 
         {loading && (
-          <div className="flex justify-center py-20">
-            <RefreshCcw className="w-8 h-8 text-medical-200 animate-spin" />
+          <div className="flex flex-col items-center justify-center py-40 gap-6">
+            <RefreshCcw className="w-12 h-12 text-brand-blue animate-spin opacity-40" />
+            <p className="text-[10px] font-bold text-surface-500 uppercase tracking-[0.3em]">Synching with Global Database Node...</p>
           </div>
         )}
 
         {/* Unreviewed Signals */}
         {unreviewed.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
-              Critical Surveillance Needed
-            </h2>
-            <div className="space-y-3">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-xs font-bold text-surface-500 uppercase tracking-[0.2em]">Active Threat Vectors</h2>
+              <span className="text-[10px] font-bold text-brand-red animate-pulse">LIVE SURVEILLANCE ACTIVE</span>
+            </div>
+            <div className="space-y-4">
               {unreviewed.map(alert => (
                 <div
                   key={alert.id}
-                  className="bg-white border border-medical-100 rounded-2xl p-5 flex items-start justify-between gap-6 hover:border-medical-300 transition-colors group animate-safemed-slidein"
+                  className={`clinical-card border-l-4 group animate-safemed-slidein ${
+                    alert.level === 'critical' ? 'border-brand-red' : alert.level === 'high' ? 'border-brand-amber' : 'border-brand-blue'
+                  }`}
                 >
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-soft
-                      ${alert.level === 'critical' ? 'bg-red-50' : alert.level === 'high' ? 'bg-orange-50' : 'bg-yellow-50'}`}>
-                      {alert.level === 'critical' ? '🔴' : alert.level === 'high' ? '🟠' : '🟡'}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-base font-black text-slate-900 capitalize leading-none group-hover:text-medical-600 transition-colors">
-                          {alert.drug_name}
-                        </span>
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider
-                          ${alert.level === 'critical' ? 'bg-red-500 text-white' : alert.level === 'high' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white'}`}>
-                          {alert.level}
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
-                          Signal Intensity: {alert.risk_score}
-                        </span>
+                  <div className="flex items-start justify-between gap-8">
+                    <div className="flex items-start gap-6 flex-1">
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl shadow-premium border ${levelBg(alert.level)} ${levelColor(alert.level)}`}>
+                        {alert.level === 'critical' ? <ShieldAlert className="w-8 h-8" /> : alert.level === 'high' ? <Activity className="w-8 h-8" /> : <Zap className="w-8 h-8" />}
                       </div>
-                      <p className="text-slate-600 text-[13px] font-medium leading-relaxed">{alert.message}</p>
-                      <p className="text-slate-400 text-[10px] font-bold mt-2 uppercase tracking-tighter">
-                        Timestamp: {new Date(alert.created_at).toLocaleString()}
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-3">
+                          <span className="text-xl font-bold text-white capitalize group-hover:text-brand-cyan transition-colors">
+                            {alert.drug_name}
+                          </span>
+                          <span className={`text-[9px] font-black px-2.5 py-1 rounded border uppercase tracking-widest ${levelBg(alert.level)} ${levelColor(alert.level)}`}>
+                            {alert.level} Signal
+                          </span>
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                            <span className="text-[9px] font-bold text-surface-500 uppercase">ROR:</span>
+                            <span className="text-[10px] font-mono text-brand-cyan font-bold">{alert.risk_score}</span>
+                          </div>
+                        </div>
+                        <p className="text-white/70 text-sm font-medium leading-relaxed max-w-3xl italic">"{alert.message}"</p>
+                        <div className="flex items-center gap-6 mt-4">
+                          <div className="flex items-center gap-2">
+                            <Terminal className="w-3 h-3 text-surface-500" />
+                            <span className="text-[10px] font-bold text-surface-500 uppercase tracking-tighter">
+                              {new Date(alert.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-white/5" />
+                          <span className="text-[10px] font-bold text-surface-500 uppercase tracking-tighter">NODE ID: PV-{alert.id.toString().slice(-6)}</span>
+                        </div>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => markReviewed(alert.id)}
+                      className="flex-shrink-0 bg-white/5 border border-white/10 text-surface-400 hover:bg-brand-emerald/10 hover:border-brand-emerald/30 hover:text-brand-emerald px-6 py-3 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest"
+                    >
+                      <CheckCircle className="w-4 h-4 inline mr-2" />
+                      Clear Signal
+                    </button>
                   </div>
-                  <button
-                    onClick={() => markReviewed(alert.id)}
-                    className="flex-shrink-0 text-[11px] font-bold bg-slate-50 hover:bg-green-50 hover:text-green-600 text-slate-500 px-4 py-2 rounded-xl border border-slate-100 hover:border-green-200 transition-all active:scale-95"
-                  >
-                    Clear Signal
-                  </button>
                 </div>
               ))}
             </div>
@@ -131,24 +171,33 @@ export default function AlertsPage() {
 
         {/* Reviewed History */}
         {reviewed.length > 0 && (
-          <div className="space-y-4 pt-4 opacity-70">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
-              Cleared History
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-6 pt-10 border-t border-white/[0.05]">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-xs font-bold text-surface-500 uppercase tracking-[0.2em]">Validated History</h2>
+              <span className="text-[10px] font-bold text-surface-500 uppercase">ARCHIVED NODES</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
               {reviewed.map(alert => (
                 <div
                   key={alert.id}
-                  className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-3"
+                  className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-5 flex items-center gap-4 group hover:bg-white/[0.04] transition-all"
                 >
-                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <div className="p-2 bg-brand-emerald/10 border border-brand-emerald/20 rounded-lg text-brand-emerald">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold text-slate-700 capitalize block truncate">
+                    <span className="text-sm font-bold text-white capitalize block truncate group-hover:text-brand-emerald transition-colors">
                       {alert.drug_name}
                     </span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {alert.level} · Reviewed at {new Date(alert.updated_at || alert.created_at).toLocaleDateString()}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[8px] font-bold uppercase tracking-widest ${levelColor(alert.level)}`}>
+                        {alert.level}
+                      </span>
+                      <div className="w-1 h-1 rounded-full bg-white/5" />
+                      <span className="text-[8px] font-bold text-surface-500 uppercase tracking-tighter">
+                        Archived: {new Date(alert.updated_at || alert.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -157,15 +206,19 @@ export default function AlertsPage() {
         )}
 
         {!loading && alerts.length === 0 && (
-          <div className="text-center py-32 bg-white border border-dashed border-medical-200 rounded-3xl animate-safemed-fadein">
-            <div className="text-5xl mb-4 animate-safemed-float">🧘</div>
-            <h3 className="text-lg font-black text-slate-900">Systems Harmonized</h3>
-            <p className="text-slate-500 text-sm mt-2 font-medium">No active safety threats detected across clinical compounds.</p>
+          <div className="text-center py-40 bg-white/[0.01] border border-dashed border-white/10 rounded-3xl animate-safemed-fadein">
+            <div className="w-24 h-24 mx-auto mb-8 bg-brand-blue/5 border border-brand-blue/10 rounded-full flex items-center justify-center relative">
+              <Eye className="w-10 h-10 text-brand-blue opacity-30" />
+              <div className="absolute inset-0 rounded-full border-2 border-brand-blue/10 border-t-brand-blue/40 animate-spin-slow" />
+            </div>
+            <h3 className="text-2xl font-bold text-white tracking-tight">Clinical Harmony Achieved</h3>
+            <p className="text-surface-500 text-sm mt-3 max-w-md mx-auto">No active safety threats or anomalous signals detected across clinical compound clusters.</p>
             <button
               onClick={generateAlerts}
-              className="mt-6 text-medical-600 font-bold text-xs hover:underline"
+              className="mt-10 btn-premium px-10 py-4 group"
             >
-              Run system-wide re-scan →
+              <RefreshCcw className="w-4 h-4 mr-3 group-hover:rotate-180 transition-transform duration-500" />
+              <span className="uppercase tracking-[0.2em] text-xs font-bold">Initiate Deep System Re-Scan</span>
             </button>
           </div>
         )}

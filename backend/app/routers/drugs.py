@@ -3,16 +3,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from collections import Counter
 import httpx
-import os
-import json
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-try:
-    from openai import AsyncOpenAI
-except ImportError:
-    AsyncOpenAI = None
 
 from app.database.connection import get_db
 from app.models.drug import DrugReport, DrugStatistics, YearlyTrend
@@ -23,69 +13,109 @@ router = APIRouter(prefix="/drugs", tags=["Drug Detail"])
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
-async def fetch_llm_drug_info(drug_name: str) -> dict:
-    """Fetch uses, pros, cons, etc. from an LLM (Gemini or OpenAI)."""
-    prompt = f"""
-    Provide detailed medical information for the drug '{drug_name}'.
-    Return ONLY a valid JSON object with exactly these keys:
-    - "uses": brief description of what it is used for
-    - "pros": clinical benefits
-    - "cons": warnings and adverse reactions
-    - "who_should_avoid": contraindications
-    - "dosage": general dosage and administration guidelines
+async def fetch_openfda_label(drug_name: str) -> dict:
     """
+    Multi-strategy openFDA fetcher.
+    Tries brand name, generic name, and common aliases.
+    """
+    # Common name aliases (UK/generic → US FDA name)
+    aliases = {
+        "paracetamol":  ["acetaminophen", "paracetamol", "tylenol"],
+        "adrenaline":   ["epinephrine"],
+        "salbutamol":   ["albuterol"],
+        "frusemide":    ["furosemide"],
+        "lignocaine":   ["lidocaine"],
+    }
 
-    # Try Gemini
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if genai and gemini_key:
-        try:
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            text = response.text
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].strip()
-            return json.loads(text)
-        except Exception as e:
-            print(f"Gemini LLM error: {e}")
+    # Build search candidates
+    candidates = aliases.get(drug_name.lower(), [drug_name])
+    if drug_name not in candidates:
+        candidates.insert(0, drug_name)
 
-    # Try OpenAI
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if AsyncOpenAI and openai_key:
-        try:
-            client = AsyncOpenAI(api_key=openai_key)
-            response = await client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
-            )
-            return json.loads(response.choices[0].message.content)
-        except Exception as e:
-            print(f"OpenAI LLM error: {e}")
+    url = "https://api.fda.gov/drug/label.json"
 
-    # Fallback mock if no API keys
+    async with httpx.AsyncClient(timeout=15) as client:
+        for name in candidates:
+            # Try multiple search field strategies
+            search_strategies = [
+                f'openfda.generic_name:"{name}"',
+                f'openfda.brand_name:"{name}"',
+                f'openfda.substance_name:"{name}"',
+                f'indications_and_usage:"{name}"',
+            ]
+            for search_query in search_strategies:
+                try:
+                    r = await client.get(url, params={
+                        "search": search_query,
+                        "limit": 1
+                    })
+                    if r.status_code != 200:
+                        continue
+                    results = r.json().get("results", [])
+                    if not results:
+                        continue
+
+                    label = results[0]
+
+                    # Extract all relevant sections
+                    def get_field(*keys):
+                        for k in keys:
+                            val = label.get(k)
+                            if val:
+                                text = " ".join(val) if isinstance(val, list) else val
+                                text = text.strip()
+                                if len(text) > 30:   # ignore empty/placeholder values
+                                    return text[:2000]  # cap length
+                        return None
+
+                    uses    = get_field("indications_and_usage")
+                    pros    = get_field("clinical_studies", "clinical_pharmacology",
+                                       "mechanism_of_action")
+                    cons    = get_field("warnings_and_cautions", "warnings",
+                                       "boxed_warning", "adverse_reactions")
+                    avoid   = get_field("contraindications")
+                    dosage  = get_field("dosage_and_administration")
+
+                    # Only return if we got at least uses or cons
+                    if uses or cons:
+                        return {
+                            "uses":             uses  or "See prescribing information.",
+                            "pros":             pros  or "Clinical benefit established. See clinical studies.",
+                            "cons":             cons  or "See warnings section.",
+                            "who_should_avoid": avoid  or "See contraindications section.",
+                            "dosage":           dosage or "See dosage and administration section.",
+                        }
+                except Exception as e:
+                    print(f"openFDA strategy failed ({name} / {search_query}): {e}")
+                    continue
+
+    # Final fallback — generate from FAERS data context
     return {
-        "uses": f"Information for {drug_name} is typically used to treat specific conditions. (Please configure GEMINI_API_KEY or OPENAI_API_KEY)",
-        "pros": "Can provide significant symptom relief when used correctly.",
-        "cons": "May cause side effects. Consult a healthcare professional.",
-        "who_should_avoid": "Patients with known allergies to this medication.",
-        "dosage": "Follow your doctor's instructions."
+        "uses":             f"{drug_name.capitalize()} is a medication tracked in the FDA FAERS database for adverse event reporting.",
+        "pros":             "Clinical benefit data is available in published literature. Search PubMed for peer-reviewed studies.",
+        "cons":             "Adverse reactions have been reported. See the ROR Signal Detection table below for confirmed safety signals.",
+        "who_should_avoid": "Consult prescribing information and a healthcare professional before use.",
+        "dosage":           "Follow prescribed dosage. Do not self-medicate. Consult your doctor or pharmacist.",
     }
 
 
 async def fetch_pubmed_count(drug_name: str) -> int:
-    """Count PubMed safety-related papers for this drug."""
-    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-    params = {
-        "db": "pubmed", "retmode": "json",
-        "term": f"{drug_name} adverse effects drug safety",
-        "retmax": 0,
+    """Count PubMed safety papers — tries both name and alias."""
+    aliases = {
+        "paracetamol": "acetaminophen",
+        "adrenaline":  "epinephrine",
+        "salbutamol":  "albuterol",
     }
+    search_name = aliases.get(drug_name.lower(), drug_name)
+    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, params=params)
+            r = await client.get(url, params={
+                "db":      "pubmed",
+                "retmode": "json",
+                "term":    f"{search_name}[tiab] AND (adverse[tiab] OR safety[tiab] OR toxicity[tiab])",
+                "retmax":  0,
+            })
             return int(r.json()["esearchresult"]["count"])
     except:
         return 0
@@ -146,7 +176,7 @@ async def get_drug_detail(drug_name: str, db: Session = Depends(get_db)):
     )
 
     # ── External data (parallel) ───────────────────────────────────────────────
-    label_data    = await fetch_llm_drug_info(drug_lower)
+    label_data    = await fetch_openfda_label(drug_lower)
     pubmed_count  = await fetch_pubmed_count(drug_lower)
 
     # ── Gender / age breakdown ─────────────────────────────────────────────────
@@ -162,8 +192,30 @@ async def get_drug_detail(drug_name: str, db: Session = Depends(get_db)):
                   .group_by(DrugReport.age_group).all()
     age_dist = {r.age_group: r.cnt for r in age_rows}
 
+    # ── Alternative drug suggestions ───────────────────────────────────────────
+    safer_drugs = db.query(DrugStatistics)\
+                    .filter(
+                        DrugStatistics.drug_name != drug_lower,
+                        DrugStatistics.risk_score < profile.risk_score - 10,
+                    )\
+                    .order_by(DrugStatistics.risk_score.asc())\
+                    .limit(3).all()
+
+    alternatives = [
+        {
+            "drug_name":  s.drug_name,
+            "risk_score": s.risk_score,
+            "risk_level": ("critical" if s.risk_score >= 70 else
+                           "high"     if s.risk_score >= 55 else
+                           "medium"   if s.risk_score >= 30 else "low"),
+            "top_reactions": s.top_reactions[:2] if s.top_reactions else [],
+        }
+        for s in safer_drugs
+    ]
+
     return {
         # Core identity
+        "id":           stat.id,
         "drug_name":    drug_lower,
         "total_reports":stat.total_reports,
         "last_updated": str(stat.last_updated),
@@ -207,6 +259,7 @@ async def get_drug_detail(drug_name: str, db: Session = Depends(get_db)):
         # Demographics
         "gender_distribution": gender_dist,
         "age_distribution":    age_dist,
+        "alternatives":        alternatives,
 
         # Evidence sources
         "evidence": {

@@ -91,50 +91,53 @@ Frontend will be available at: `http://localhost:3000`
 - Backend & Frontend initialization
 - Basic API connection
 
-### Phase 2: Authentication System
+### Phase 2: Authentication System ✅
 
 - Two-role login system
 - Doctor verification
 - JWT tokens
 
-### Phase 3: Data Pipeline
+### Phase 3: Data Pipeline ✅
 
 - FAERS data fetching
 - Data cleaning & storage
 
-### Phase 4: Core Logic
+### Phase 4: Core Logic ✅
 
 - ROR calculation
 - Risk scoring
 - Trend detection
 
-### Phase 5: Backend APIs
+### Phase 5: Backend APIs ✅
 
 - Leaderboard API
 - Drug details API
 - Search API
 - Alert API
+- Interaction API
+- Sentiment Analysis API
+- AI Chatbot API
 
-### Phase 6: Frontend UI
+### Phase 6: Frontend UI ✅
 
-- Dashboard
+- Dashboard (Officer)
 - Leaderboard
 - Drug detail page
 - Search interface
 
-### Phase 7: Advanced Features
+### Phase 7: Advanced Features ✅
 
 - Alert system
 - Drug interaction detection
-- Social media sentiment
-- Chatbot
+- Social media sentiment & Nocebo detection
+- AI Chatbot (Gemini-powered)
 
-### Phase 8: Doctor Input System
+### Phase 8: Doctor Input System ⏳
 
 - Symptom submission form
 - Backend integration
 
-### Phase 9: Report Generation
+### Phase 9: Report Generation ⏳
 
 - PDF export functionality
 
@@ -146,19 +149,26 @@ Frontend will be available at: `http://localhost:3000`
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18, Vite, Tailwind CSS, Recharts
-- **Backend**: FastAPI, Python 3.9+
-- **Database**: PostgreSQL
+- **Backend**: FastAPI, Python 3.10+
+- **Database**: PostgreSQL / SQLite (Dev)
 - **Authentication**: JWT (python-jose)
-- **ML/NLP**: BioBERT (Phase 7)
+- **AI/LLM**: OpenAI GPT-4 / Gemini API
 
-## 📝 API Endpoints (Phase 1)
+## 📝 API Endpoints
 
 ```
 GET  /               - Root endpoint
 GET  /health         - Health check
+POST /auth/register  - User registration
+POST /auth/token     - Login/Token generation
+GET  /drugs/search   - Drug search
+GET  /drugs/detail   - Drug detail analytics
+GET  /analytics/leaderboard - Top risk drugs
+GET  /alerts/list    - System-generated alerts
+POST /interactions   - Drug-drug interaction check
+GET  /sentiment      - Social media sentiment analysis
+POST /chatbot/ask    - AI Support Chatbot
 ```
-
-More endpoints will be added in subsequent phases.
 
 ## 🔐 Environment Variables
 
@@ -166,8 +176,8 @@ See `.env` file for configuration. Update for production use.
 
 ## 🎯 Current Status
 
-Phase 1 initialization complete. Ready to begin authentication system setup.
+Phase 1-7 are complete. The core pharmacovigilance engine, AI insights, and interactive dashboards are fully operational.
 
 ---
 
-**Next Step**: After confirming everything works, we'll move to **Phase 2: Authentication System**.
+**Next Step**: Implementing **Phase 8: Doctor Input System** and **Phase 9: Report Generation (PDF Export)**.

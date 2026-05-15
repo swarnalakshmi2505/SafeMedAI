@@ -1,103 +1,63 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app.database.connection import get_db
-from app.models.alert import Alert
-from app.models.drug import DrugStatistics
-from app.models.user import User
+from app.services.alert_service import generate_alerts, get_all_alerts, review_alert, send_alert
 from app.routers.auth import get_current_user, require_officer
+from app.models.user import User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
-THRESHOLDS = {"medium": 30, "high": 55, "critical": 70}
-
-
 @router.post("/generate")
-def generate_alerts(db: Session = Depends(get_db), _: User = Depends(require_officer)):
-    """Auto-generate alerts for drugs crossing risk thresholds."""
-    created = 0
-    stats = db.query(DrugStatistics).all()
+def trigger_alert_generation(db: Session = Depends(get_db), _: User = Depends(require_officer)):
+    return generate_alerts(db)
 
-    for stat in stats:
-        level = None
-        if stat.risk_score >= THRESHOLDS["critical"]:
-            level = "critical"
-        elif stat.risk_score >= THRESHOLDS["high"]:
-            level = "high"
-        elif stat.risk_score >= THRESHOLDS["medium"]:
-            level = "medium"
-
-        if not level:
-            continue
-
-        existing = (
-            db.query(Alert)
-            .filter(Alert.drug_name == stat.drug_name, Alert.is_validated.is_(False))
-            .first()
-        )
-        if existing:
-            continue
-
-        top_reactions = stat.top_reactions or []
-        reaction_text = ", ".join(top_reactions[:3]) if top_reactions else "no top reactions available"
-
-        db.add(
-            Alert(
-                drug_name=stat.drug_name,
-                level=level,
-                risk_score=stat.risk_score,
-                message=(
-                    f"{stat.drug_name.capitalize()} crossed the {level} threshold with a risk score of "
-                    f"{stat.risk_score}. Top reactions: {reaction_text}."
-                ),
-            )
-        )
-        created += 1
-
+@router.post("/")
+def create_manual_alert(data: dict, db: Session = Depends(get_db), _: User = Depends(require_officer)):
+    from app.models.alert import Alert
+    new_alert = Alert(
+        drug_name=data.get("drug_name"),
+        level=data.get("level", "medium"),
+        risk_score=data.get("risk_score", 50.0),
+        message=data.get("message", "Manual clinical observation recorded."),
+        is_reviewed=False,
+        is_sent=False
+    )
+    db.add(new_alert)
     db.commit()
-    return {"message": f"Generated {created} new alerts"}
-
+    db.refresh(new_alert)
+    return new_alert
 
 @router.get("/")
-def list_alerts(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(50).all()
+def fetch_alerts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    alerts = get_all_alerts(db)
+    # Both officers and doctors can see alerts, but doctors should maybe only see validated+sent alerts?
+    # Actually the request says "Shows last 5 validated+sent alerts" for doctors.
+    # The officer view might want all.
+    
     return [
         {
-            "id": alert.id,
-            "drug_name": alert.drug_name,
-            "level": alert.level,
-            "risk_score": alert.risk_score,
-            "message": alert.message,
-            "is_validated": alert.is_validated,
-            "is_sent": alert.is_sent,
-            "created_at": str(alert.created_at),
+            "id": a.id,
+            "drug_name": a.drug_name,
+            "risk_score": a.risk_score,
+            "level": a.level,
+            "message": a.message,
+            "is_reviewed": a.is_reviewed,
+            "is_sent": a.is_sent,
+            "created_at": str(a.created_at)
         }
-        for alert in alerts
+        for a in alerts
     ]
 
-
 @router.patch("/{alert_id}/validate")
-def validate_alert(alert_id: int, db: Session = Depends(get_db), _: User = Depends(require_officer)):
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
+def mark_reviewed(alert_id: int, db: Session = Depends(get_db), _: User = Depends(require_officer)):
+    result = review_alert(alert_id, db)
+    if not result:
         raise HTTPException(status_code=404, detail="Alert not found")
-
-    alert.is_validated = True
-    alert.validated_at = datetime.utcnow()
-    db.commit()
-    return {"message": "Alert validated"}
-
+    return {"success": True, "alert_id": alert_id}
 
 @router.patch("/{alert_id}/send")
-def send_alert(alert_id: int, db: Session = Depends(get_db), _: User = Depends(require_officer)):
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
+def mark_sent(alert_id: int, db: Session = Depends(get_db), _: User = Depends(require_officer)):
+    result = send_alert(alert_id, db)
+    if not result:
         raise HTTPException(status_code=404, detail="Alert not found")
-    if not alert.is_validated:
-        raise HTTPException(status_code=400, detail="Validate alert before sending")
-
-    alert.is_sent = True
-    db.commit()
-    return {"message": "Alert sent to doctors"}
+    return {"success": True, "alert_id": alert_id}

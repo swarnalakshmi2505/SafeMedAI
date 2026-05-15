@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.schemas.auth import UserRegister
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Using bcrypt as primary with truncate_error=False to handle long passwords automatically and fast
+pwd_context = CryptContext(
+    schemes=["bcrypt", "pbkdf2_sha256", "bcrypt_sha256"],
+    deprecated="auto",
+    bcrypt__truncate_error=False
+)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
@@ -17,10 +22,12 @@ EXPIRE_MINS = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 
 def hash_password(password: str) -> str:
+    # passlib bcrypt handler with truncate_error=False handles the 72-byte limit
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    # passlib handles the scheme detection and automatic truncation for bcrypt
     return pwd_context.verify(plain, hashed)
 
 
